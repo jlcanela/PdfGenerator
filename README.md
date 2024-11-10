@@ -1,6 +1,22 @@
 # Sample project to generate PDF file in C# server side
 
-## Setup for Linux
+## Setup for Windows
+
+In windows setup you need rust and dotnet tooling to build. 
+The pdf_generator.dll is prebuilt for windows. 
+
+To run the PdfApp: 
+```
+cd PdfApp
+dotnet run
+```
+
+To build the pdf_generator.dll
+```
+.\build.ps1
+```
+
+## Setup for Linux (currently broken, need cross compile config)
 
 In linux setup you rust and dotnet tooling as usual. 
 

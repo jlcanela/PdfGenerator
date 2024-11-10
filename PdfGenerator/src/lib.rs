@@ -2,7 +2,7 @@ use interoptopus::patterns::string::AsciiPointer;
 use interoptopus::{ffi_function, ffi_type, Inventory, InventoryBuilder, function};
 use futures::executor::block_on;
 
-use std::path::{Path, PathBuf};
+use std::path:: PathBuf;
 
 use typst::{diag::{FileError, FileResult, Warned}, foundations::{Bytes, Datetime}, syntax::{FileId, Source, VirtualPath}, text::{Font, FontBook}, utils::LazyHash, Library};
 use typst_kit::fonts::FontSlot;
@@ -15,6 +15,10 @@ pub enum FFIError {
     Panic = 200,
     Delegate = 300,
     Failed = 400,
+    FailedInput = 401,
+    FailedJson = 402,
+    FailedBuffer = 403,
+    FailedGeneration = 404,
 }
 
 #[ffi_type]
@@ -34,9 +38,12 @@ pub extern "C" fn generate_pdf(
 ) -> FFIError {
     // Convert input string
     let input_str = match input.as_str() {
-        Ok(s) => s,
+        Ok(s) => {
+            println!("source: {}", s);
+            s
+        },
         Err(_) => {
-            return FFIError::Failed;
+            return FFIError::FailedInput;
         }
     };
 
@@ -47,7 +54,7 @@ pub extern "C" fn generate_pdf(
     };
 
     if out_buffer.is_null() {
-        return FFIError::Failed;
+        return FFIError::FailedBuffer;
     }
 
     match block_on(do_generate_pdf(input_str, json_str)) {
@@ -67,7 +74,10 @@ pub extern "C" fn generate_pdf(
             
             FFIError::Ok
         },
-        Err(()) => FFIError::Failed
+        Err(err) => {
+            println!("{}", err);
+            FFIError::FailedGeneration
+        } 
     }
             
 }
@@ -85,7 +95,7 @@ pub extern "C" fn free_binary_data(data: ByteBuffer) {
 
 
 
-pub async fn do_generate_pdf(input: &str, json: &str) -> Result<Vec<u8>, ()> {
+pub async fn do_generate_pdf(input: &str, json: &str) -> Result<Vec<u8>, String> {
     let fonts = typst_kit::fonts::FontSearcher::new().include_embedded_fonts(true).search();
 
     let world = SimpleWorld {
@@ -108,10 +118,10 @@ pub async fn do_generate_pdf(input: &str, json: &str) -> Result<Vec<u8>, ()> {
             let pdf: Result<Vec<u8>, _> = typst_pdf::pdf(&document, &options);
             match pdf {
                 Ok(buffer) => Ok(buffer),
-                Err(e) => Err(()),
+                Err(err) => Err(format!("{:?}", err)),
             }
         }
-        Err(e) => Err(()),
+        Err(err) => Err(format!("{:?}", err)),
     }
 }
 
@@ -137,23 +147,32 @@ impl typst::World for SimpleWorld {
     }
 
     fn main(&self) -> FileId {
-        let path = Path::new("/main.typst");
-        //"/main.typst");
-        FileId::new(None, VirtualPath::new(path))
+        let path = PathBuf::from(if cfg!(windows) {
+            r"\\main.typst"  // Windows UNC path style
+        } else {
+            "/main.typst"    // Unix style
+        });
+
+        FileId::new(None, VirtualPath::new(&path))
     }
 
     fn source(&self, id: FileId) -> FileResult<Source> {
-        match id.vpath().as_rooted_path().to_str() {
-            Some(path) if path == "/main.typst" => {
+        let path = id.vpath().as_rooted_path();
+        
+        // Convert path to string and normalize separators
+        let path_str = path.to_string_lossy().replace('\\', "/");
+        
+        match path_str.as_str() {
+            "/main.typst" => {
                 let source = Source::new(id, self.source.clone());
                 Ok(source)
             },
-            Some(path) if path == "/data.json" => {
+            "/data.json" => {
                 let source = Source::new(id, self.json.clone());
                 Ok(source)
             }
             _ => {
-                let err = FileError::NotFound(PathBuf::from(id.vpath().as_rooted_path().as_os_str())); 
+                let err = FileError::NotFound(PathBuf::from(path)); 
                 Err(err)
             }
         }
@@ -174,7 +193,7 @@ impl typst::World for SimpleWorld {
         self.fonts[index].get()
     }
 
-    fn today(&self, offset: Option<i64>) -> Option<Datetime> {
+    fn today(&self, _offset: Option<i64>) -> Option<Datetime> {
         None
     }
 }

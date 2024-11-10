@@ -9,7 +9,7 @@ fn bindings_csharp() -> Result<(), Error> {
     Generator::new(
         Config {
             class: "Pdf".to_string(),
-            dll_name: "libpdf_generator".to_string(),
+            dll_name: "pdf_generator".to_string(),
             namespace_mappings: NamespaceMappings::new("PdfGenerator"),
             ..Config::default()
         },

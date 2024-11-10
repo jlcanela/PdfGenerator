@@ -12,7 +12,7 @@ namespace PdfGenerator
 {
     public static partial class Pdf
     {
-        public const string NativeLib = "libpdf_generator";
+        public const string NativeLib = "pdf_generator";
 
         static Pdf()
         {
@@ -36,6 +36,10 @@ namespace PdfGenerator
         Panic = 200,
         Delegate = 300,
         Failed = 400,
+        FailedInput = 401,
+        FailedJson = 402,
+        FailedBuffer = 403,
+        FailedGeneration = 404,
     }
 
     [Serializable]
